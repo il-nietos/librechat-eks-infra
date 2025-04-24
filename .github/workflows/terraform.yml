@@ -3,23 +3,21 @@ name: Terraform CI/CD
 on:
   push:
     branches: [main, develop]
-    paths:
-      - terraform/**
+
   pull_request:
     branches: [main, develop]
-    paths:
-      - terraform/**
+
   
-  workflow_dispatch:
-    inputs:
-      confirm_destroy:
-        description: 'Set to "1" to confirm destroy'
-        required: false
-        default: '0'
-      confirm_prod_destroy:
-        description: 'Set to "1" to confirm production destroy'
-        required: false
-        default: '0'
+  # workflow_dispatch:
+  #   inputs:
+  #     confirm_destroy:
+  #       description: 'Set to "1" to confirm destroy'
+  #       required: false
+  #       default: '0'
+  #     confirm_prod_destroy:
+  #       description: 'Set to "1" to confirm production destroy'
+  #       required: false
+  #       default: '0'
 
 jobs:
   terraform-plan:
@@ -72,7 +70,7 @@ jobs:
         run: terraform plan -out=tfplan
 
       - name: Upload Terraform Plan
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: terraform-plan
           path: ${{ env.TF_WORKING_DIR }}/tfplan
@@ -110,7 +108,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION}}
 
       - name: Download Terraform Plan
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: terraform-plan
           path: ${{ env.TF_WORKING_DIR }}
