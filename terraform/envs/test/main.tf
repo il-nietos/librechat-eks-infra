@@ -27,8 +27,3 @@ resource "aws_sns_topic" "test_topic" {
     Name        = "${var.name_prefix}-test-topic"
   }
 }
-
-# Output the topic ARN
-output "test_topic_arn" {
-  value = aws_sns_topic.test_topic.arn
-}
