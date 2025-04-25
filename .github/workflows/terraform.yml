@@ -6,33 +6,24 @@ on:
 
   pull_request:
     branches: [main, develop]
+    types: [opened, synchronize, reopened, closed]
 
-  
-  # workflow_dispatch:
-  #   inputs:
-  #     confirm_destroy:
-  #       description: 'Set to "1" to confirm destroy'
-  #       required: false
-  #       default: '0'
-  #     confirm_prod_destroy:
-  #       description: 'Set to "1" to confirm production destroy'
-  #       required: false
-  #       default: '0'
+env: 
+  AWS_REGION: "eu-central-1"
+  TF_VERSION: "1.11.0"
 
 jobs:
   terraform-plan:
-    name: "Terraform init, lint, validate and plan"
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    name: "Terraform Plan"
     runs-on: ubuntu-latest
+    env:
+      TF_WORKING_DIR: terraform/envs/${{ (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && 'test') || (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop' && 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && 'test') || (github.event_name == 'push' && github.ref == 'refs/heads/develop' && 'dev') || 'INVALID' }}
 
-    env: 
-      AWS_REGION: "eu-central-1"
-      TF_VERSION: "1.11.0"
-      TF_WORKING_DIR: terraform/envs/test
-    
     defaults:
       run:
         working-directory: ${{ env.TF_WORKING_DIR }}
-    
+
     steps:
       - name: Checkout github repository
         uses: actions/checkout@v4
@@ -48,26 +39,28 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION}}
-
-      # - name: Install TFLint
-      #   run: |
-      #     curl -sLo tflint.zip 
-      #     unzip tflint.zip -d /usr/local/bin
-      #     tflint --version
       
       - name: Terraform init
         run: terraform init
       
       - name: Terraform validate
         run: terraform validate
-      
-      # - name: "TFLint"
-      #   run: |
-      #     tflint --init
-      #     tflint
+
+      - name: Check destroy conditions
+        id: check-destroy
+        if: |
+          github.event_name == 'pull_request' && 
+          contains(github.event.pull_request.labels.*.name, 'destroy') && 
+          contains(github.event.pull_request.title, 'destroy')
+        run: echo "destroy=true" >> $GITHUB_OUTPUT
       
       - name: Terraform plan
+        if: steps.check-destroy.outputs.destroy != 'true'
         run: terraform plan -out=tfplan
+      
+      - name: Terraform destroy plan
+        if: steps.check-destroy.outputs.destroy == 'true'
+        run: terraform plan -destroy -out=tfplan
 
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
@@ -76,16 +69,16 @@ jobs:
           path: ${{ env.TF_WORKING_DIR }}/tfplan
           retention-days: 1
     
-  deploy:
+  terraform-apply:
     name: Terraform Deploy
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    if: |
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')) || 
+      (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
     needs: terraform-plan
     runs-on: ubuntu-latest
 
     env: 
-      AWS_REGION: "eu-central-1"
-      TF_VERSION: "1.11.0"
-      TF_WORKING_DIR: terraform/envs/test
+      TF_WORKING_DIR: terraform/envs/${{ (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && 'test') || (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop' && 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && 'test') || (github.event_name == 'push' && github.ref == 'refs/heads/develop' && 'dev') || 'INVALID' }}
 
     defaults:
       run:
@@ -112,9 +105,56 @@ jobs:
         with:
           name: terraform-plan
           path: ${{ env.TF_WORKING_DIR }}
-  
+
       - name: Terraform Init
         run: terraform init
-  
+
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
+
+  terraform-destroy:
+    name: Terraform Destroy
+    if: |
+      github.event_name == 'pull_request' && 
+      github.event.action == 'closed' && 
+      github.event.pull_request.merged == true && 
+      contains(github.event.pull_request.labels.*.name, 'destroy') && 
+      contains(github.event.pull_request.title, 'destroy')
+    runs-on: ubuntu-latest
+    env:
+      TF_WORKING_DIR: terraform/envs/${{ (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && 'test') || (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop' && 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && 'test') || (github.event_name == 'push' && github.ref == 'refs/heads/develop' && 'dev') || 'INVALID' }}
+
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+    steps:
+
+      - name: Checkout github repository
+        uses: actions/checkout@v4
+
+      - name: Set up terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION}}
+
+      - name: Configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION}}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Download Terraform Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan
+          path: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Destroy
+        run: terraform apply -auto-approve tfplan
+      
+
