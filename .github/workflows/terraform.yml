@@ -49,13 +49,16 @@ jobs:
       - name: Check destroy conditions
         id: check-destroy
         run: |
+          title="${{ github.event.pull_request.title }}"
+          labels='${{ toJson(github.event.pull_request.labels.*.name) }}'
+      
           if [[ "${{ github.event_name }}" == "pull_request" && \
-                "${{ github.event.pull_request.title }}" == *destroy* && \
-                "${{ toJson(github.event.pull_request.labels.*.name) }}" == *destroy* ]]; then
+                "$title" == *destroy* && \
+                "$labels" == *'"destroy"'* ]]; then
             echo "destroy=true" >> $GITHUB_OUTPUT
           else
             echo "destroy=false" >> $GITHUB_OUTPUT
-          fi     
+          fi  
 
       - name: Terraform plan
         if: steps.check-destroy.outputs.destroy != 'true'
