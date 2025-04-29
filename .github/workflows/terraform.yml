@@ -69,7 +69,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
-          path: tfplan
+          path: ${{ env.TF_WORKING_DIR }}/tfplan
           retention-days: 1
     
   terraform-apply:
@@ -108,8 +108,8 @@ jobs:
       - name: Download Terraform Plan
         uses: actions/download-artifact@v4
         with:
+          path: ${{ env.TF_WORKING_DIR }}/tfplan
           name: tfplan
-          path: tfplan
 
       - name: Terraform Init
         run: terraform init
