@@ -1,9 +1,6 @@
 name: Terraform CI/CD
 
 on:
-  push:
-    branches: [main, develop]
-
   pull_request:
     branches: [main, develop]
     types: [opened, synchronize, reopened, closed]
@@ -14,11 +11,11 @@ env:
 
 jobs:
   terraform-plan:
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'))
+    if: github.event_name == 'pull_request'
     name: Terraform Plan
     runs-on: ubuntu-latest
     env:
-      TF_WORKING_DIR: terraform/envs/${{ (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && 'test') || (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop' && 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && 'test') || (github.event_name == 'push' && github.ref == 'refs/heads/develop' && 'dev') || 'INVALID' }}
+      TF_WORKING_DIR: terraform/envs/${{ (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && 'test') || (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop' && 'dev') || 'INVALID' }}
 
     defaults:
       run:
@@ -42,7 +39,7 @@ jobs:
       
       - name: Terraform init
         run: terraform init
-      
+
       - name: Terraform validate
         run: terraform validate
 
@@ -77,11 +74,15 @@ jobs:
     
   terraform-apply:
     name: Terraform Execute plan
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      (github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'develop')
     needs: terraform-plan
     runs-on: ubuntu-latest
     env: 
-      TF_WORKING_DIR: ${{ github.ref == 'refs/heads/main' && 'terraform/envs/test' || github.ref == 'refs/heads/develop' && 'terraform/envs/dev' }}
+      TF_WORKING_DIR: terraform/envs/${{ (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && 'test') || (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop' && 'dev') || 'INVALID' }}
 
     defaults:
       run:
