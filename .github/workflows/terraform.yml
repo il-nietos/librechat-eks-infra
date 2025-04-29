@@ -14,8 +14,8 @@ env:
 
 jobs:
   terraform-plan:
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
-    name: "Terraform Plan"
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'))
+    name: Terraform Plan
     runs-on: ubuntu-latest
     env:
       TF_WORKING_DIR: terraform/envs/${{ (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && 'test') || (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop' && 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && 'test') || (github.event_name == 'push' && github.ref == 'refs/heads/develop' && 'dev') || 'INVALID' }}
@@ -71,33 +71,23 @@ jobs:
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-plan
-          path: ${{ env.TF_WORKING_DIR }}/tfplan
+          name: tfplan
+          path: tfplan
           retention-days: 1
     
   terraform-apply:
     name: Terraform Execute plan
-    if: |
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')) || 
-      (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     needs: terraform-plan
     runs-on: ubuntu-latest
-
     env: 
-      TF_WORKING_DIR: terraform/envs/${{ (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && 'test') || (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop' && 'dev') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && 'test') || (github.event_name == 'push' && github.ref == 'refs/heads/develop' && 'dev') || 'INVALID' }}
+      TF_WORKING_DIR: ${{ github.ref == 'refs/heads/main' && 'terraform/envs/test' || github.ref == 'refs/heads/develop' && 'terraform/envs/dev' }}
 
     defaults:
       run:
         working-directory: ${{ env.TF_WORKING_DIR }}
 
     steps:
-      - name: Log operation type
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ contains(github.event.pull_request.labels.*.name, 'destroy') }}" == "true" && "${{ contains(github.event.pull_request.title, 'destroy') }}" == "true" ]]; then
-            echo "Executing DESTROY operation for ${{ env.ENV_NAME }}"
-          else
-            echo "Executing APPLY operation for ${{ env.ENV_NAME }}"
-          fi    
 
       - name: Checkout github repository
         uses: actions/checkout@v4
@@ -117,8 +107,8 @@ jobs:
       - name: Download Terraform Plan
         uses: actions/download-artifact@v4
         with:
-          name: terraform-plan
-          path: ${{ env.TF_WORKING_DIR }}
+          name: tfplan
+          path: tfplan
 
       - name: Terraform Init
         run: terraform init
