@@ -62,17 +62,17 @@ jobs:
 
       - name: Terraform plan
         if: steps.check-destroy.outputs.destroy != 'true'
-        run: terraform -chdir=${{ env.TF_WORKING_DIR }} plan -out=tfplan
+        run: terraform plan -out=tfplan
       
       - name: Terraform destroy plan
         if: steps.check-destroy.outputs.destroy == 'true'
-        run: terraform -chdir=${{ env.TF_WORKING_DIR }} plan -destroy -out=tfplan
+        run: terraform plan -destroy -out=tfplan
 
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
-          path: ${{ env.TF_WORKING_DIR }}/tfplan
+          path: tfplan
           retention-days: 1
     
   terraform-apply:
@@ -108,7 +108,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: tfplan
-          path: ${{ env.TF_WORKING_DIR }} /tfplan
+          path: tfplan
 
       - name: Terraform Init
         run: terraform init
