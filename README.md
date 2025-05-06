@@ -1,5 +1,10 @@
 # LibreChat EKS Infrastructure
 
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/il-nietos/librechat-eks-infra/terraform.yml?branch=main)
+![Terraform](https://img.shields.io/badge/terraform-%235835CC.svg?style=flat&logo=terraform&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS-%23FF9900.svg?style=flat&logo=amazon-aws&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/kubernetes-%23326ce5.svg?style=flat&logo=kubernetes&logoColor=white)
+
 Terraform configuration for provisioning and deploying the [LibreChat](https://github.com/danny-avila/LibreChat) application on Amazon EKS. This infrastructure supports three isolated environments (dev, stage, prod), managed via GitHub Actions pipelines.
 
 ##  Project Overview
